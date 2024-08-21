@@ -2,8 +2,6 @@
 
 LM-TTS is a single stage auto-regressive transformer model capable of generating speech samples conditioned on text and audio prompts. The text prompts are passed through a frozen text encoder model to obtain a sequence of hidden-state representations. LM-TTS is then trained to predict discrete audio tokens, or audio codes, conditioned on these hidden-states. These audio tokens are then decoded using an audio compression model, such as EnCodec, to recover the audio waveform.
 
-Through an efficient token interleaving pattern, MusicGen does not require a self-supervised semantic representation of the text/audio prompts, thus eliminating the need to cascade multiple models to predict a set of codebooks (e.g. hierarchically or upsampling). Instead, it is able to generate all the codebooks in a single forward pass.
-
 ## Model structure
 
 The LM-TTS model can be de-composed into three distinct stages:
