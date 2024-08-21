@@ -10,7 +10,6 @@ The LM-TTS model can be de-composed into three distinct stages:
 2. LM-TTS decoder: a language model (LM) that auto-regressively generates audio tokens (or codes) conditional on the encoder hidden-state representations.
 3. Audio decoder: used to recover the audio waveform from the audio tokens predicted by the decoder.
 
-Key features of the model are:
+Key feature of the model is:
 
-1. The audio prompt is used as a conditional signal for the generated audio sample, instead of audio continuation.
-2. Conditional text and audio signals are concatenated to the LM-TTS decoder hidden states instead of being used as a cross attention signal.
+1. The conditional text signal is concatenated to the LM-TTS decoder hidden states instead of being used as a cross attention signal.
