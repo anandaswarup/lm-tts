@@ -22,8 +22,8 @@ class RotaryEmbedding(nn.Module):
         Instantiates the RotaryEmbedding module.
 
         Args:
-            dim (int): Embedding dimension. Must be d_model // n_heads, where d_model is the transformer model dimension
-                and n_heads is the number of attention heads.
+            dim (int): Embedding dimension. Must be d_model // n_heads, where d_model is the transformer model
+                dimension and n_heads is the number of attention heads.
             base_period (float): Maximum period of the rotation frequencies. Defaults to 10000.0.
             base_decay_rate (int): Base decay rate for the exponential decay. Defaults to 512.
             device (torch.device, optional): The device to use. Defaults to None.
