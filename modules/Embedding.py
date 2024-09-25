@@ -1,4 +1,4 @@
-"""Embedding modules for use in transformer models"""
+"""Embedding modules"""
 
 import torch
 import torch.nn as nn
@@ -14,105 +14,101 @@ class RotaryEmbedding(nn.Module):
     def __init__(
         self,
         dim: int,
-        base_period: float = 10000.0,
-        base_decay_rate: int = 512,
-        device: torch.device | None = None,
+        base: float = 10000.0,
+        scale_base: float = 2048,
     ) -> None:
         """
-        Instantiates the RotaryEmbedding module.
+        Instantiate the RotaryEmbedding module.
 
         Args:
-            dim (int): Embedding dimension. Must be d_model // n_heads, where d_model is the transformer model
-                dimension and n_heads is the number of attention heads.
-            base_period (float): Maximum period of the rotation frequencies. Defaults to 10000.0.
-            base_decay_rate (int): Base decay rate for the exponential decay. Defaults to 512.
-            device (torch.device, optional): The device to use. Defaults to None.
+            dim (int): The embedding dimension.
+            max_embedding_positions (int): The maximum number of positions to embed. Defaults to 2048.
+            base (float): The base period of the rotary embedding. Defaults to 10000.0.
+            scale_base (float): The base decay rate in terms of scaling time. Defaults to 2048.
         """
         super().__init__()
 
         self.dim = dim
-        self.base_period = base_period
-        self.base_decay_rate = base_decay_rate
-        self.device = device
+        self.base = base
+        self.scale_base = scale_base
 
-        # Rotation frequencies
-        freq = 1.0 / (
-            self.base_period
-            ** (torch.arange(0, self.dim, 2, device=device).float() / self.dim)
-        )
-        self.register_buffer("freq", freq, persistent=False)
+        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
+        self.register_buffer("inv_freq", inv_freq)
 
-        # xPos decay rates
-        decay_rate = (torch.arange(0, self.dim, 2, device=device) + 0.4 * self.dim) / (
-            1.4 * self.dim
-        )
-        self.register_buffer("decay_rate", decay_rate, persistent=False)
+        decay_rate = (torch.arange(0, dim, 2) + 0.4 * dim) / (1.4 * dim)
+        self.register_buffer("decay_rate", decay_rate)
 
-        # Rotation and decay tensors
         self.rotation: torch.Tensor | None = None
         self.decay: torch.Tensor | None = None
 
-    def _rotate_half(self, x: torch.Tensor) -> torch.Tensor:
+    def _rotate_half(x: torch.Tensor) -> torch.Tensor:
         """
         Rotates half the hidden dims of the input tensor.
 
         Args:
-            x (torch.Tensor): Input tensor.
+            x (torch.Tensor): The input tensor to rotate.
         """
-        x_1, x_2 = x.chunk(2, dim=-1)
+        x1 = x[..., : x.shape[-1] // 2]
+        x2 = x[..., x.shape[-1] // 2 :]
 
-        return torch.cat((-x_2, x_1), dim=-1)
+        return torch.cat((-x2, x1), dim=-1)
 
-    def _get_rotation(self, start: int, end: int) -> torch.Tensor:
+    def _get_rotation(
+        self, seq_len: int, device: torch.device, dtype: torch.dtype
+    ) -> torch.Tensor:
         """
-        Create rotation tensor for the given start and end indices. Cache values for fast computation
-        """
-        if self.rotation is None or end > self.rotation.shape[0]:
-            assert isinstance(self.freq, torch.Tensor)
-            idx = torch.arange(end, device=self.device).type_as(self.freq)
-            rotation = torch.einsum("i, j -> i j", idx, self.freq)
-            self.rotation = torch.cat((rotation, rotation), dim=-1)
-
-        return self.rotation[start:end]
-
-    def _get_decay(self, start: int, end: int) -> torch.Tensor:
-        """
-        Create complex decay tensor for the given start and end indices. Cache values for fast computation
-        """
-        if self.decay is None or end > self.decay.shape[0]:
-            assert isinstance(self.decay_rate, torch.Tensor)
-            idx = torch.arange(end, device=self.device).type_as(self.decay_rate)
-            power = (idx - ((end - start) // 2)) / self.base_decay_rate
-            decay = self.decay_rate ** rearrange(power, "i -> i 1")
-            self.decay = torch.cat((decay, decay), dim=-1)
-
-        return self.decay[start:end]
-
-    def apply_rotary_embedding(
-        self, query: torch.Tensor, key: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """
-        Apply rotary positional embedding to the query and key tensors. Assumes that the query and key tensors are
-        from the same source (i.e. self attention) and have shape [batch_size, n_heads, seq_len, d_model // n_heads].
+        Get the rotation matrix for the given sequence length.
 
         Args:
-            query (torch.Tensor): Query tensor.
-            key (torch.Tensor): Key tensor.
+            seq_len (int): The length of the input tensor.
+            device (torch.device): The device to place the rotation matrix on.
+            dtype (torch.dtype): The data type of the rotation matrix.
         """
-        assert (
-            query.shape[-2] == key.shape[-2]
-        ), "Query and key tensors must have the same sequence length"
+        if self.rotation is None or seq_len > self.rotation.shape[0]:
+            idx = torch.arange(seq_len, device=device).type_as(self.inv_freq)
+            rotation = torch.einsum("i, j -> i j", idx, self.inv_freq)
+            self.rotation = torch.cat((rotation, rotation), dim=-1).to(dtype=dtype)
 
-        # Get the rotation and decay tensors
-        rotation = self._get_rotation(0, query.shape[-2])
-        decay = self._get_decay(0, query.shape[-2])
+        return self.rotation[:seq_len]
 
-        # Apply the rotation and decay to the query and key tensors
-        query_embed = (query * rotation.cos() * decay) + (
-            self._rotate_half(query) * rotation.sin() * decay
+    def _get_decay(
+        self, seq_len: int, device: torch.device, dtype: torch.dtype
+    ) -> torch.Tensor:
+        """
+        Get the decay matrix for the given sequence length.
+
+        Args:
+            seq_len (int): The length of the input tensor.
+            device (torch.device): The device to place the decay matrix on.
+            dtype (torch.dtype): The data type of the decay matrix.
+        """
+        if self.decay is None or seq_len > self.decay.shape[0]:
+            idx = torch.arange(seq_len, device=device).type_as(self.inv_freq)
+            power = (idx - (seq_len // 2)) / self.scale_base
+            decay = self.decay_rate ** rearrange(power, "i -> i 1")
+            self.decay = torch.cat((decay, decay), dim=-1).to(dtype=dtype)
+
+        return self.decay[:seq_len]
+
+    def forward(self, x: torch.Tensor, invert_decay: False) -> torch.Tensor:
+        """
+        Forward pass of the RotaryEmbedding module.
+
+        Args:
+            x (torch.Tensor): The input tensor to embed of shape [bsz, num_heads, seq_len, d_model // num_heads]
+            invert_decay (bool): Whether to invert the decay matrix. Defaults to False.
+        """
+        seq_len = x.shape[-2]
+
+        # Get the rotation and decay matrices
+        rotation = self._get_rotation(seq_len=seq_len, device=x.device, dtype=x.dtype)
+        decay = self._get_decay(seq_len=seq_len, device=x.device, dtype=x.dtype)
+
+        if invert_decay:
+            decay = 1 / decay
+
+        x_embed = (x * rotation.cos() * decay) + (
+            self._rotate_half(x) * rotation.sin() * decay
         )
-        key_embed = (key * rotation.cos() * (1 / decay)) + (
-            self._rotate_half(key) * rotation.sin() * (1 / decay)
-        )
 
-        return query_embed, key_embed
+        return x_embed
