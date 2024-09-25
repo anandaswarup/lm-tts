@@ -21,7 +21,8 @@ class RotaryEmbedding(nn.Module):
         Instantiate the RotaryEmbedding module.
 
         Args:
-            dim (int): The embedding dimension.
+            dim (int): The embedding dimension. Must be d_model // num_heads where d_model is the transformer model
+                dimension and num_heads is the number of attention heads.
             max_embedding_positions (int): The maximum number of positions to embed. Defaults to 2048.
             base (float): The base period of the rotary embedding. Defaults to 10000.0.
             scale_base (float): The base decay rate in terms of scaling time. Defaults to 2048.
