@@ -1,6 +1,6 @@
 # Introduction
 
-LM-TTS is a single stage transformer languagemodel capable of generating speech samples conditioned on text prompts. The text prompts are passed through a learned embedding layer to obtain a sequence of hidden-state representations. LM-TTS is then trained to predict discrete audio tokens, or audio codes, conditioned on these hidden-states. These audio tokens are then decoded using an audio compression model, such as EnCodec, to recover the audio waveform.
+LM-TTS is a single stage transformer language model capable of generating speech samples conditioned on text prompts. The text prompts are passed through a learned embedding layer to obtain a sequence of hidden-state representations. LM-TTS is then trained to predict discrete audio tokens, or audio codes, conditioned on these hidden-states. These audio tokens are then decoded using an audio compression model, such as EnCodec, to recover the audio waveform.
 
 ## Model structure
 
