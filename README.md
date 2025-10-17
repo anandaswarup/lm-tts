@@ -1,4 +1,4 @@
-# LM-TTS 🗣️  
+# LM-TTS
 
 ## Overview
 
