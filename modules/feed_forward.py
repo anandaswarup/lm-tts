@@ -1,5 +1,5 @@
 """
-Feed-Forward network modules.
+Feed-Forward network module.
 """
 
 import torch
