@@ -1,5 +1,5 @@
 """
-Positional embeddings for transformer models.
+Position embeddings for transformer models.
 """
 
 import torch
@@ -9,85 +9,74 @@ from einops import rearrange
 
 class RotaryPositionalEmbeddings(nn.Module):
     """
-    This class implements rotary positional embeddings for transformer models, as described in
-    https://arxiv.org/pdf/2104.09864
+    Rotary Positional Embeddings (RoPE) implementation as described in https://arxiv.org/abs/2104.09864.
     """
 
     def __init__(
-        self, dim: int, max_seq_len: int = 4096, rope_base: int = 10000
+        self, head_dim: int, max_seq_len: int = 4096, base: int = 10000
     ) -> None:
         """
-        Initializes the RotaryPositionalEmbeddings module.
+        Initialize RotaryPositionalEmbeddings.
 
         Args:
-            dim (int): Dimension of the input tensor to be embedded. Must be equal to the dimension of each
-                attention head.
-            max_seq_len (int): Maximum sequence length for which to precompute embeddings.
-                Default is 4096.
-            rope_base (int): The base for the geometric progression used to compute the rotation angles.
-                Default is 10000.
+            head_dim (int): Dimension of each attention head.
+            max_seq_len (int): Maximum sequence length supported by the model.
+            base (int): Base for the geometric progression used to compute the rotation angles.
         """
         super().__init__()
 
-        self.cache: torch.Tensor
-
-        self.dim = dim
+        self.head_dim = head_dim
         self.max_seq_len = max_seq_len
-        self.rope_base = rope_base
+        self.base = base
 
-        # Precompute the inverse frequencies
+        # Initialize the frequencies for computing the rotation angles
         theta = 1.0 / (
-            self.rope_base
-            ** (torch.arange(0, self.dim, 2)[: (self.dim // 2)].float() / self.dim)
+            base ** (torch.arange(0, head_dim, 2)[: (head_dim // 2)].float() / head_dim)
         )
 
-        # Create position indices
-        position_idxs = torch.arange(
-            max_seq_len, dtype=theta.dtype, device=theta.device
-        )
+        # Create position indices [0, 1, 2, ..., max_seq_len - 1]
+        seq_idx = torch.arange(max_seq_len, dtype=theta.dtype, device=theta.device)
 
-        # Outer product of theta and position index. Shape: [max_seq_len, dim // 2]
-        idx_theta = torch.einsum("i, j -> ij", position_idxs, theta).float()
+        # Compute the rotation angles. Shape: (max_seq_len, head_dim // 2)
+        angles = torch.einsum("i , j -> i j", seq_idx, theta)
 
-        # Compute the frequency embeddings and cache them. Shape: [max_seq_len, dim // 2, 2]
-        cache = torch.stack([torch.cos(idx_theta), torch.sin(idx_theta)], dim=-1)
-        self.register_buffer("cache", cache, persistent=False)
+        # Create embedding matrix by stacking cosine and sine of the angles
+        emb = torch.stack([torch.cos(angles), torch.sin(angles)], dim=-1)
+        self.register_buffer("emb", emb, persistent=False)
+        self.emb: torch.Tensor
 
     def forward(
         self, x: torch.Tensor, input_pos: torch.Tensor | None = None
     ) -> torch.Tensor:
         """
-        Forward pass of the RotaryPositionalEmbeddings module.
+        Apply rotary positional embeddings to the input tensor.
 
         Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, num_heads, seq_len, head_dim), where head_dim is
-                the dimension of each attention head.
-            input_pos (torch.Tensor | None): Optional tensor of shape (..., seq_len) containing position indices.
-                If None, positions are assumed to be [0, 1, ..., seq_len - 1].
+            x (torch.Tensor): Input tensor of shape (batch_size, num_heads, seq_len, head_dim).
+            input_pos (torch.Tensor | None): Optional tensor specifying positions for each element in the sequence.
+                If none, assume the index of the token is its position id. Default is None
 
         Returns:
-            torch.Tensor: Tensor of shape (batch_size, num_heads, seq_len, head_dim) with rotary positional embeddings
-                applied.
+            torch.Tensor: Tensor with rotary positional embeddings applied.
         """
-        # Get seq length of input tensor
-        seq_len = x.shape[2]
+        seq_len = x.size(-2)
 
-        # Get the relevant positional embeddings from the cache based on input_pos if provided or seq_len
-        freqs = self.cache[input_pos] if input_pos is not None else self.cache[:seq_len]
+        # Get the embeddings for the current sequence length. Shape: (seq_len, head_dim // 2, 2)
+        emb = self.emb[input_pos] if input_pos is not None else self.emb[:seq_len]
 
-        # Reshape input tensor to separate even and odd dimensions
-        x = rearrange(x, "... (d k) -> ... d k", d=self.dim // 2)
+        # Split the input tensor into two parts across the last dimension for rotation
+        x = rearrange(x, "b n s (d x) -> b n s d x", x=2)
 
-        # Apply rotary embeddings
+        # Apply the rotary embeddings
         x_rope = torch.stack(
             [
-                x[..., 0] * freqs[..., 0] - x[..., 1] * freqs[..., 1],
-                x[..., 1] * freqs[..., 0] + x[..., 0] * freqs[..., 1],
+                x[..., 0] * emb[..., 0] - x[..., 1] * emb[..., 1],
+                x[..., 1] * emb[..., 0] + x[..., 0] * emb[..., 1],
             ],
             -1,
         )
 
-        # Reshape back to original dimensions
-        x_rope = rearrange(x_rope, "... d k -> ... (d k)")
+        # Rearrange back to the original shape of the input tensor
+        x_rope = rearrange(x_rope, "b n s d x -> b n s (d x)")
 
         return x_rope
