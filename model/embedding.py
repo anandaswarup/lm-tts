@@ -46,7 +46,7 @@ class Embedding(nn.Module):
             Float[torch.Tensor, "... d_model"]: Output tensor containing embeddings.
         """
         return self.weight[token_ids, :]
-    
+
     def extra_repr(self) -> str:
         """
         Return a string representation of the Embedding layer.
