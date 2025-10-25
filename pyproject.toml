@@ -7,6 +7,8 @@ requires-python = ">=3.12"
 dependencies = [
     "datasets[audio]>=4.2.0",
     "einops>=0.8.1",
+    "einx>=0.3.0",
+    "jaxtyping>=0.3.3",
     "torch>=2.9.0",
     "torchaudio>=2.9.0",
     "torchcodec>=0.8.0",
