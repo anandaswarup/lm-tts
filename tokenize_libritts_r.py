@@ -313,16 +313,19 @@ def process_dataset(
     print("=" * 60)
 
 
-@app.local_entrypoint()
-def main(
+# Add a simple CLI function that can be called remotely
+@app.function(
+    image=image,
+    secrets=[HF_TOKEN],
+    timeout=86400,
+)
+def run_tokenization(
     subset: str = "all",
     repo_name: str | None = None,
     batch_size: int = 32,
     splits: str | None = None,
 ):
     """
-    Local entrypoint - calls the remote process_dataset function.
-    This allows the script to run entirely on Modal's cloud.
+    Standalone function to run tokenization completely in the cloud.
     """
-    # Call the remote function - this runs on Modal's infrastructure
     process_dataset.remote(subset, repo_name, batch_size, splits)
