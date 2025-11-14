@@ -1,5 +1,5 @@
 """
-Script to tokenize LibriTTS_R dataset using Neucodec audio codec. Runs on Modal with A100-80GB GPU and uploads to 
+Script to tokenize LibriTTS_R dataset using Neucodec audio codec. Runs on Modal with A100-80GB GPU and uploads to
 HuggingFace datasets.
 
 Usage:
@@ -112,7 +112,7 @@ def encode_audio_with_neucodec(
 
 @app.function(
     image=image,
-    gpu=modal.gpu.A100(count=1, size="80GB"),
+    gpu="A100-80GB",
     volumes={"/cache": volume},
     secrets=[HF_TOKEN],
     timeout=86400,  # 24 hours timeout
