@@ -21,13 +21,17 @@ from neucodec import NeuCodec
 app = modal.App("libritts-r-tokenizer")
 
 # Create Modal image with required dependencies
-image = modal.Image.debian_slim(python_version="3.12").pip_install(
-    "datasets[audio]>=4.2.0",
-    "torch>=2.9.0",
-    "torchaudio>=2.9.0",
-    "neucodec>=0.0.4",
-    "transformers>=4.57.1",
-    "huggingface-hub>=0.27.0",
+image = (
+    modal.Image.debian_slim(python_version="3.12")
+    .run_commands("pip install --upgrade pip")
+    .pip_install(
+        "datasets[audio]>=4.2.0",
+        "torch>=2.9.0",
+        "torchaudio>=2.9.0",
+        "neucodec>=0.0.4",
+        "transformers>=4.57.1",
+        "huggingface-hub>=0.27.0",
+    )
 )
 
 # Create Modal volume for caching
@@ -144,7 +148,6 @@ def tokenize_split(
         subset,
         split=split_name,
         cache_dir=cache_dir,
-        trust_remote_code=True,
     )
 
     # Print dataset info (handle both Dataset and IterableDataset)
