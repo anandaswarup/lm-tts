@@ -58,8 +58,6 @@ def encode_audio_with_neucodec(
     Returns:
         Batch with 'codecs' field replacing 'audio' field
     """
-    device = next(codec.parameters()).device
-
     # Process each audio sample in the batch
     codecs_list = []
 
@@ -99,8 +97,9 @@ def encode_audio_with_neucodec(
 
         # Encode with Neucodec - returns FSQ codes
         with torch.no_grad():
-            # encode_code expects [B, 1, T] at 16kHz
-            codes = codec.encode_code(waveform_16k.to(device))
+            # encode_code expects [B, 1, T] at 16kHz on CPU
+            # The model internally handles moving to GPU for encoding
+            codes = codec.encode_code(waveform_16k)
             # codes shape is [B, 1, F] where F is the number of frames
 
             # Convert to list for storage in dataset
@@ -182,10 +181,16 @@ def tokenize_split(
     except TypeError:
         print(f"Split {split_name} tokenized (streaming mode)")
 
+    # Save tokenized dataset to volume to avoid serialization issues
+    output_dir = f"/cache/tokenized/{split_name}"
+    os.makedirs(output_dir, exist_ok=True)
+    print(f"Saving tokenized dataset to {output_dir}")
+    tokenized_dataset.save_to_disk(output_dir)  # type: ignore
+
     # Commit volume changes
     volume.commit()
 
-    return split_name, tokenized_dataset
+    return split_name, output_dir
 
 
 @app.function(
@@ -281,12 +286,15 @@ def process_dataset(
 
     # Collect all processed splits into a DatasetDict
     print("\n" + "=" * 60)
-    print("All splits processed. Preparing DatasetDict...")
+    print("All splits processed. Loading datasets from volume...")
     print("=" * 60 + "\n")
 
+    from datasets import load_from_disk
+
     dataset_dict = DatasetDict()
-    for split_name, dataset in results:
-        dataset_dict[split_name] = dataset
+    for split_name, output_dir in results:
+        print(f"Loading {split_name} from {output_dir}")
+        dataset_dict[split_name] = load_from_disk(output_dir)  # type: ignore
 
     # Upload to HuggingFace if repo_name is provided
     if repo_name:
