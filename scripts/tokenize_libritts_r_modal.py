@@ -10,14 +10,13 @@ and can run independently after you close your laptop:
 
 Setup:
     1. First, upload your dataset to Modal volume:
-       modal run tokenize_libritts_r_modal_async.py::upload_dataset \
+       modal run tokenize_libritts_r_modal.py::upload_dataset \
            --local-path /path/to/LibriTTS_R
 
     2. Deploy the tokenization function:
-       modal deploy tokenize_libritts_r_modal_async.py
-
+       modal deploy tokenize_libritts_r_modal.py
     3. Trigger the tokenization (runs in background):
-       modal run tokenize_libritts_r_modal_async.py::trigger_tokenization \
+       modal run tokenize_libritts_r_modal.py::trigger_tokenization \
            --hf-dataset-id your-username/dataset-name
 
     4. Check status anytime:
