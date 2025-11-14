@@ -11,7 +11,6 @@ Usage:
     python tokenize_libri_tts_r.py \
         --dataset_root /path/to/LibriTTS_R \
         --hf_dataset_id your-username/dataset-name \
-        --split train-clean-100 \
         --batch_size 32
 
 Note:
@@ -240,12 +239,6 @@ def main():
         help="Hugging Face dataset ID (e.g., 'username/dataset-name')",
     )
     parser.add_argument(
-        "--split",
-        type=str,
-        default="train-clean-100",
-        help="Dataset split to process (default: train-clean-100)",
-    )
-    parser.add_argument(
         "--batch_size",
         type=int,
         default=32,
@@ -272,45 +265,79 @@ def main():
     if not dataset_root.exists():
         raise ValueError(f"Dataset root not found: {dataset_root}")
 
-    print(f"Loading LibriTTS_R metadata from {dataset_root}/{args.split}...")
-    samples = load_libri_tts_r_metadata(dataset_root, args.split)
-    print(f"Found {len(samples)} samples")
+    # Discover available splits
+    available_splits = []
+    for item in dataset_root.iterdir():
+        if item.is_dir():
+            available_splits.append(item.name)
 
-    # Initialize Neucodec model
-    print(f"Initializing Neucodec model on {args.device}...")
+    available_splits = sorted(available_splits)
+
+    if not available_splits:
+        raise ValueError(f"No splits found in {dataset_root}")
+
+    print("=" * 60)
+    print("LibriTTS_R Tokenization")
+    print("=" * 60)
+    print(f"Dataset root: {dataset_root}")
+    print(f"Splits found: {', '.join(available_splits)}")
+    print(f"HF dataset ID: {args.hf_dataset_id}")
+    print(f"Device: {args.device}")
+    print(f"Private: {args.private}")
+    print("=" * 60)
+
+    # Initialize Neucodec model once for all splits
+    print(f"\nInitializing Neucodec model on {args.device}...")
     model = NeuCodec.from_pretrained("neuphonic/neucodec")
     model = model.to(args.device)
     model.eval()
+    print("Model loaded successfully")
 
-    # Process dataset
-    print("Processing dataset...")
-    processed_samples = process_dataset(
-        samples,
-        model,
-        args.device,
-        args.batch_size,
-    )
-    print(f"Successfully processed {len(processed_samples)} samples")
+    # Process each split
+    results = []
+    for i, split in enumerate(available_splits, 1):
+        print(f"\n{'=' * 60}")
+        print(f"Processing split {i}/{len(available_splits)}: {split}")
+        print(f"{'=' * 60}")
 
-    # Create Hugging Face dataset
-    print("Creating Hugging Face dataset...")
-    dataset = create_hf_dataset(processed_samples)
+        # Load metadata
+        print(f"Loading metadata from {dataset_root}/{split}...")
+        samples = load_libri_tts_r_metadata(dataset_root, split)
+        print(f"Found {len(samples)} samples")
 
-    # Print dataset info
-    print("\nDataset info:")
-    print(dataset)
-    print("\nFirst sample:")
-    print(dataset[0])
+        # Process dataset
+        print("Processing dataset...")
+        processed_samples = process_dataset(
+            samples,
+            model,
+            args.device,
+            args.batch_size,
+        )
+        print(f"Successfully processed {len(processed_samples)} samples")
 
-    # Upload to Hugging Face Hub
-    print(f"\nUploading dataset to {args.hf_dataset_id}...")
-    dataset.push_to_hub(
-        args.hf_dataset_id,
-        private=args.private,
-        split=args.split,
-    )
+        # Create Hugging Face dataset
+        print("Creating Hugging Face dataset...")
+        dataset = create_hf_dataset(processed_samples)
 
-    print(f"✓ Dataset uploaded successfully to {args.hf_dataset_id}")
+        # Upload to Hugging Face Hub
+        print(f"Uploading split '{split}' to {args.hf_dataset_id}...")
+        dataset.push_to_hub(
+            args.hf_dataset_id,
+            private=args.private,
+            split=split,
+        )
+
+        results.append({"split": split, "num_samples": len(processed_samples)})
+        print(f"✓ Split '{split}' uploaded successfully")
+
+    # Print final summary
+    print("\n" + "=" * 60)
+    print("All splits tokenization complete!")
+    print("=" * 60)
+    for result in results:
+        print(f"  {result['split']}: {result['num_samples']} samples")
+    print(f"\nDataset: https://huggingface.co/datasets/{args.hf_dataset_id}")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
