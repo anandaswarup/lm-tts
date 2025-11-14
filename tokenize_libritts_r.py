@@ -23,6 +23,7 @@ app = modal.App("libritts-r-tokenizer")
 # Create Modal image with required dependencies
 image = (
     modal.Image.debian_slim(python_version="3.12")
+    .apt_install("ffmpeg", "libsndfile1")  # Install FFmpeg and audio libraries
     .run_commands("pip install --upgrade pip")
     .pip_install(
         "datasets[audio]>=4.2.0",
