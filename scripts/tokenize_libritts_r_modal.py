@@ -26,7 +26,6 @@ Note:
     - Requires Modal account and authentication (modal setup)
     - Requires HF_TOKEN secret configured in Modal
     - Uses A100 GPU by default
-    - Runs completely in the cloud after triggering
 """
 
 import modal
@@ -83,7 +82,9 @@ def tokenize_split(
     from tqdm import tqdm
 
     def load_libri_tts_r_metadata(dataset_root: Path, split: str) -> List[Dict]:
-        """Load metadata from LibriTTS_R dataset directory structure."""
+        """
+        Load metadata from LibriTTS_R dataset directory structure.
+        """
         split_path = dataset_root / split
         if not split_path.exists():
             raise ValueError(f"Split directory not found: {split_path}")
@@ -131,7 +132,9 @@ def tokenize_split(
         device: str,
         target_sample_rate: int = 16000,
     ) -> torch.Tensor:
-        """Encode audio file to discrete codes using Neucodec."""
+        """
+        Encode audio file to discrete codes using Neucodec.
+        """
         waveform, sample_rate = torchaudio.load(audio_path)
 
         if sample_rate != target_sample_rate:
@@ -159,7 +162,9 @@ def tokenize_split(
         model: NeuCodec,
         device: str,
     ) -> List[Dict]:
-        """Process all samples in the dataset."""
+        """
+        Process all samples in the dataset.
+        """
         processed_samples = []
 
         for sample in tqdm(samples, desc="Tokenizing audio"):
@@ -190,7 +195,9 @@ def tokenize_split(
         return processed_samples
 
     def create_hf_dataset(processed_samples: List[Dict]) -> Dataset:
-        """Create Hugging Face Dataset from processed samples."""
+        """
+        Create Hugging Face Dataset from processed samples.
+        """
         data_dict = {
             "id": [s["id"] for s in processed_samples],
             "audio_duration": [s["audio_duration"] for s in processed_samples],
@@ -262,7 +269,6 @@ def tokenize_split(
 def process_all_splits(hf_dataset_id: str, private: bool = False):
     """
     Process all available splits in the dataset.
-    This function runs entirely in the cloud.
     """
     from pathlib import Path
 
@@ -315,12 +321,10 @@ def process_all_splits(hf_dataset_id: str, private: bool = False):
 
     return results
 
-
 @app.local_entrypoint()
 def upload_dataset(local_path: str):
     """
     Upload local LibriTTS_R dataset to Modal volume.
-    This only needs to be done once.
 
     Args:
         local_path: Path to local LibriTTS_R dataset
@@ -331,21 +335,30 @@ def upload_dataset(local_path: str):
     if not dataset_path.exists():
         raise ValueError(f"Dataset path not found: {local_path}")
 
+    # Count total files for progress tracking
+    print("Scanning dataset directory...")
+    all_files = list(dataset_path.rglob("*"))
+    file_count = sum(1 for f in all_files if f.is_file())
+    total_size = sum(f.stat().st_size for f in all_files if f.is_file())
+
     print("=" * 60)
     print("Uploading LibriTTS_R Dataset to Modal Volume")
     print("=" * 60)
     print(f"Local path: {local_path}")
+    print(f"Files to upload: {file_count:,}")
+    print(f"Total size: {total_size / (1024**3):.2f} GB")
     print("=" * 60)
 
     print("\nUploading dataset to Modal volume...")
-    print("(This may take a while for the first run)")
+    print("(This may take a while depending on your connection)")
+    print("Progress will be shown by Modal...")
 
     with volume.batch_upload() as batch:
         batch.put_directory(str(dataset_path), "/")
 
     print("\n✓ Dataset uploaded successfully to Modal volume")
     print("You can now trigger tokenization with:")
-    print("  modal run tokenize_libritts_r_modal_async.py::trigger_tokenization \\")
+    print("  modal run tokenize_libritts_r_modal.py::trigger_tokenization \\")
     print("      --hf-dataset-id your-username/dataset-name")
 
 
@@ -353,7 +366,6 @@ def upload_dataset(local_path: str):
 def trigger_tokenization(hf_dataset_id: str, private: bool = False):
     """
     Trigger tokenization job that runs completely in the cloud.
-    You can close your laptop after this starts.
 
     Args:
         hf_dataset_id: Hugging Face dataset ID
