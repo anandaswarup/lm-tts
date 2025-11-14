@@ -121,76 +121,86 @@ def encode_audio_with_neucodec(
     secrets=[HF_TOKEN],
     timeout=86400,  # 24 hours timeout
 )
-def tokenize_split(
-    split_name: str,
+def tokenize_all_splits(
+    split_list: list[str],
     subset: str = "all",
     batch_size: int = 32,
-) -> tuple[str, Any]:
+) -> list[tuple[str, str]]:
     """
-    Tokenize a single split of the LibriTTS_R dataset.
+    Tokenize all splits of the LibriTTS_R dataset with a single model instance.
 
     Args:
-        split_name: Name of the split (e.g., 'train.clean.100', 'dev.clean')
+        split_list: List of split names to process
         subset: Subset configuration ('all', 'clean', 'other', 'dev')
         batch_size: Batch size for processing
-        num_proc: Number of processes for parallel processing
-    """
-    print(f"Processing split: {split_name}")
 
+    Returns:
+        List of (split_name, output_dir) tuples
+    """
     # Set cache directory
     cache_dir = "/cache/huggingface"
     os.makedirs(cache_dir, exist_ok=True)
 
-    # Load the dataset split
-    print(f"Loading dataset split: {split_name}")
-    dataset = load_dataset(
-        "mythicinfinity/libritts_r",
-        subset,
-        split=split_name,
-        cache_dir=cache_dir,
-    )
-
-    # Print dataset info (handle both Dataset and IterableDataset)
-    try:
-        print(f"Split {split_name} loaded with {len(dataset)} samples")  # type: ignore
-    except TypeError:
-        print(f"Split {split_name} loaded (streaming mode)")
-
-    # Initialize Neucodec model
+    # Initialize Neucodec model once for all splits
     print("Initializing Neucodec model...")
     device = "cuda" if torch.cuda.is_available() else "cpu"
     codec = NeuCodec.from_pretrained("neuphonic/neucodec")
     codec = codec.to(device)
     codec.eval()
-
     print(f"Neucodec model loaded on {device}")
 
-    # Process the dataset
-    print(f"Tokenizing audio in split: {split_name}")
-    tokenized_dataset = dataset.map(
-        lambda batch: encode_audio_with_neucodec(batch, codec),
-        batched=True,
-        batch_size=batch_size,
-        remove_columns=["audio"],
-    )
+    results = []
 
-    # Update features to include codecs instead of audio
-    # Codecs will be stored as nested lists of integers
-    try:
-        print(f"Split {split_name} tokenized. Total samples: {len(tokenized_dataset)}")  # type: ignore
-    except TypeError:
-        print(f"Split {split_name} tokenized (streaming mode)")
+    # Process each split with the same model
+    for split_name in split_list:
+        print(f"\n{'=' * 60}")
+        print(f"Processing split: {split_name}")
+        print(f"{'=' * 60}\n")
 
-    # Save tokenized dataset to volume to avoid serialization issues
-    output_dir = f"/cache/tokenized/{split_name}"
-    os.makedirs(output_dir, exist_ok=True)
-    print(f"Saving tokenized dataset to {output_dir}")
-    tokenized_dataset.save_to_disk(output_dir)  # type: ignore
+        # Load the dataset split
+        print(f"Loading dataset split: {split_name}")
+        dataset = load_dataset(
+            "mythicinfinity/libritts_r",
+            subset,
+            split=split_name,
+            cache_dir=cache_dir,
+        )
+
+        # Print dataset info (handle both Dataset and IterableDataset)
+        try:
+            print(f"Split {split_name} loaded with {len(dataset)} samples")  # type: ignore
+        except TypeError:
+            print(f"Split {split_name} loaded (streaming mode)")
+
+        # Process the dataset
+        print(f"Tokenizing audio in split: {split_name}")
+        tokenized_dataset = dataset.map(
+            lambda batch: encode_audio_with_neucodec(batch, codec),
+            batched=True,
+            batch_size=batch_size,
+            remove_columns=["audio"],
+        )
+
+        # Update features to include codecs instead of audio
+        try:
+            print(
+                f"Split {split_name} tokenized. Total samples: {len(tokenized_dataset)}"  # type: ignore
+            )
+        except TypeError:
+            print(f"Split {split_name} tokenized (streaming mode)")
+
+        # Save tokenized dataset to volume to avoid serialization issues
+        output_dir = f"/cache/tokenized/{split_name}"
+        os.makedirs(output_dir, exist_ok=True)
+        print(f"Saving tokenized dataset to {output_dir}")
+        tokenized_dataset.save_to_disk(output_dir)  # type: ignore
+
+        results.append((split_name, output_dir))
 
     # Commit volume changes
     volume.commit()
 
-    return split_name, output_dir
+    return results
 
 
 @app.function(
@@ -270,19 +280,13 @@ def process_dataset(
     print(f"Starting tokenization for subset '{subset}'")
     print(f"Splits to process: {split_list}")
 
-    # Process each split in parallel
-    results = []
-    for split_name in split_list:
-        print(f"\n{'=' * 60}")
-        print(f"Processing split: {split_name}")
-        print(f"{'=' * 60}\n")
-
-        result = tokenize_split.remote(
-            split_name=split_name,
-            subset=subset,
-            batch_size=batch_size,
-        )
-        results.append((split_name, result))
+    # Process all splits with a single model instance
+    print("\nTokenizing all splits with a single model instance...")
+    results = tokenize_all_splits.remote(
+        split_list=split_list,
+        subset=subset,
+        batch_size=batch_size,
+    )
 
     # Collect all processed splits into a DatasetDict
     print("\n" + "=" * 60)
