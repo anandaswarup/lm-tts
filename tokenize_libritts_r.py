@@ -1,10 +1,9 @@
 """
-Script to tokenize LibriTTS_R dataset using Neucodec audio codec. Runs on Modal with A100-80GB GPU and uploads to
-HuggingFace datasets.
+Script to tokenize LibriTTS_R dataset using Neucodec audio codec. Runs on Modal with A100-80GB GPU.
 
 Usage:
     1. Deploy: modal deploy tokenize_libritts_r.py
-    2. Run detached: modal run --detach tokenize_libritts_r.py::app.process_dataset --subset all --repo-name user/dataset
+    2. Run detached: modal run --detach tokenize_libritts_r.py::app.tokenize_dataset --subset all --batch-size 32
     3. Check logs: modal app logs libritts-r-tokenizer
 """
 
@@ -14,7 +13,7 @@ from typing import Any, Dict
 import modal
 import torch
 import torchaudio
-from datasets import DatasetDict, load_dataset
+from datasets import load_dataset
 from neucodec import NeuCodec
 
 # Modal setup
@@ -31,7 +30,6 @@ image = (
         "torchaudio>=2.9.0",
         "neucodec>=0.0.4",
         "transformers>=4.57.1",
-        "huggingface-hub>=0.27.0",
     )
 )
 
@@ -205,43 +203,11 @@ def tokenize_all_splits(
 
 @app.function(
     image=image,
-    secrets=[HF_TOKEN],
-    timeout=3600,
-)
-def upload_to_huggingface(
-    dataset_dict: DatasetDict,
-    repo_name: str,
-    private: bool = False,
-) -> None:
-    """
-    Upload the tokenized dataset to HuggingFace Hub.
-
-    Args:
-        dataset_dict: DatasetDict containing all splits
-        repo_name: Repository name on HuggingFace (e.g., 'username/libritts_r_neucodec')
-        private: Whether to make the dataset private
-    """
-    print(f"Uploading dataset to HuggingFace: {repo_name}")
-
-    # Get HuggingFace token from environment
-    hf_token = os.environ.get("HF_TOKEN")  # Push to hub
-    dataset_dict.push_to_hub(
-        repo_name,
-        token=hf_token,
-        private=private,
-    )
-
-    print(f"Dataset successfully uploaded to {repo_name}")
-
-
-@app.function(
-    image=image,
-    secrets=[HF_TOKEN],
+    volumes={"/cache": volume},
     timeout=86400,
 )
-def process_dataset(
+def tokenize_dataset(
     subset: str = "all",
-    repo_name: str | None = None,
     batch_size: int = 32,
     splits: str | None = None,
 ):
@@ -250,7 +216,6 @@ def process_dataset(
 
     Args:
         subset: Which subset to process ('all', 'clean', 'other', 'dev')
-        repo_name: HuggingFace repo name to upload to (e.g., 'username/libritts_r_neucodec')
         batch_size: Batch size for processing
         splits: Comma-separated list of splits to process (e.g., 'dev.clean,test.clean')
                 If None, processes all splits for the subset
@@ -288,44 +253,10 @@ def process_dataset(
         batch_size=batch_size,
     )
 
-    # Collect all processed splits into a DatasetDict
-    print("\n" + "=" * 60)
-    print("All splits processed. Loading datasets from volume...")
-    print("=" * 60 + "\n")
-
-    from datasets import load_from_disk
-
-    dataset_dict = DatasetDict()
-    for split_name, output_dir in results:
-        print(f"Loading {split_name} from {output_dir}")
-        dataset_dict[split_name] = load_from_disk(output_dir)  # type: ignore
-
-    # Upload to HuggingFace if repo_name is provided
-    if repo_name:
-        print(f"\nUploading to HuggingFace: {repo_name}")
-        upload_to_huggingface.remote(dataset_dict, repo_name)
-    else:
-        print("\nNo repo_name provided. Skipping upload to HuggingFace.")
-        print("To upload, run with --repo-name argument")
-
     print("\n" + "=" * 60)
     print("Tokenization complete!")
+    print(f"Processed {len(results)} splits")
+    print("Tokenized datasets saved to volume at /cache/tokenized/")
     print("=" * 60)
 
-
-# Add a simple CLI function that can be called remotely
-@app.function(
-    image=image,
-    secrets=[HF_TOKEN],
-    timeout=86400,
-)
-def run_tokenization(
-    subset: str = "all",
-    repo_name: str | None = None,
-    batch_size: int = 32,
-    splits: str | None = None,
-):
-    """
-    Standalone function to run tokenization completely in the cloud.
-    """
-    process_dataset.remote(subset, repo_name, batch_size, splits)
+    return results
