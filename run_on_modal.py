@@ -3,7 +3,7 @@ Script to run tokenize_and_upload.py on Modal GPUs.
 
 Usage:
     1. Deploy: modal deploy run_on_modal.py
-    2. Run detached: modal run --detach run_on_modal.py::app.run --repo-name user/dataset
+    2. Run detached: modal run --detach run_on_modal.py::app.run --repo-name <user/dataset>
     3. Check logs: modal app logs libritts-r-tokenizer
 """
 
