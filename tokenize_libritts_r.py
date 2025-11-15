@@ -3,9 +3,9 @@ Script to tokenize LibriTTS_R dataset using Neucodec audio codec. Runs on Modal 
 HuggingFace datasets.
 
 Usage:
- Deploy and run
-    - modal deploy tokenize_libritts_r.py
-    - modal run tokenize_libritts_r.py::app.process_dataset --subset all --repo-name user/dataset
+    1. Deploy: modal deploy tokenize_libritts_r.py
+    2. Run detached: modal run --detach tokenize_libritts_r.py::app.process_dataset --subset all --repo-name user/dataset
+    3. Check logs: modal app logs libritts-r-tokenizer
 """
 
 import os
