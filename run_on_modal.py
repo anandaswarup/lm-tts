@@ -1,5 +1,5 @@
 """
-Script to run tokenization on Modal GPUs. Calls the tokenize_dataset function from tokenize_and_upload.py.
+Script to run tokenize_and_upload.py on Modal GPUs.
 
 Usage:
     1. Deploy: modal deploy run_on_modal.py
