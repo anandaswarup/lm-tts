@@ -1,7 +1,10 @@
 """
 Script to tokenize LibriTTS_R dataset using Neucodec audio codec and upload to HuggingFace datasets.
 
-Usage: python tokenize_and_upload.py --repo-name username/dataset --batch-size batch_size_value
+Usage:
+    python scripts/tokenize_and_upload.py \
+        --repo-name your-username/libritts_r_neucodec \
+        --batch-size batch_size_value
 """
 
 import argparse
