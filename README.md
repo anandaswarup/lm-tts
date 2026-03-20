@@ -18,7 +18,7 @@ The language model is a transformer language model, with the following features 
 - RMSNorm everywhere instead of LayerNorm
 - QK Normalization
 - Untied embedding / unembedding weights
-- $ReLU^2$ activations instead of GeLU or SwiGLU
+- $\text{ReLU}^2$ activations instead of GeLU or SwiGLU
 - Logit softcapping
 - Value Embeddings
 - Per-layer residual scalars
