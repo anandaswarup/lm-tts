@@ -1,5 +1,4 @@
-# lm-tts
-Language modeling based Text-to-Speech
+# LM-TTS: Language modeling based Text-to-Speech
 
 ## Introduction
 This repository contains code for training a Text-to-Speech (TTS) model based on language modeling techniques. The model is trained to generate discrete audio tokens conditioned on text input, following which the generated tokens are decoded back into audio waveforms using a neural audio codec.
