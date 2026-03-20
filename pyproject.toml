@@ -10,7 +10,8 @@ dependencies = [
 	"transformers",
 	"datasets",
 	"neucodec",
-    "ipython"
+    "ipython",
+    "kernels"
 ]
 
 [tool.uv.sources]
