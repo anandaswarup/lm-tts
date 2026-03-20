@@ -25,6 +25,8 @@ The language model is a transformer language model, with the following features 
 - Sliding window attention
 - Flash Attention 3 with fallback to PyTorch SDPA on unsupported hardware
 
+The implementation is based on the language modeling implementation in [karpathy / nanochat](https://github.com/karpathy/nanochat)
+
 ## Training
 ### Optimizer design
 The optimizer used for training the language model is a split optimizer design, where the parameters of the model are divided into two groups: those that are updated using AdamW and those that are updated using Muon. The split is based on the type of parameters, with embeddings and scalars updated using AdamW and weight matrices updated using Muon.
