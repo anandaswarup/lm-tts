@@ -86,7 +86,7 @@ class NeucodecProcessor(nn.Module):
             torch.Tensor: Encoded audio representation.
         """
         with torch.no_grad():
-            fsq_codes = self.model.encode(audio_tensor)  # type: ignore[operator]
+            fsq_codes = self.model.encode_code(audio_tensor)  # type: ignore[operator]
 
         print(f"Encoded audio using FSQ codes with shape: {fsq_codes.shape}")
 
@@ -103,7 +103,7 @@ class NeucodecProcessor(nn.Module):
             torch.Tensor: Decoded audio data as a tensor.
         """
         with torch.no_grad():
-            decoded_audio = self.model.decode(fsq_codes)  # type: ignore[operator]
+            decoded_audio = self.model.decode_code(fsq_codes)  # type: ignore[operator]
 
         print(f"Decoded audio with shape: {decoded_audio.shape}")
 
