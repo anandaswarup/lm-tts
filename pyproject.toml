@@ -11,7 +11,7 @@ dependencies = [
 	"datasets",
 	"neucodec",
     "ipython",
-    "kernels"
+    "kernels",
 ]
 
 [tool.uv.sources]
