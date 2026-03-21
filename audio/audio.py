@@ -1,5 +1,5 @@
 """
-Interface for Neucodec model to encode and decode audio data.
+Interface for NeuCodec model to encode and decode audio data.
 """
 
 import torch
